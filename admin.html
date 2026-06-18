@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>永衡 · 後台管理</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #0a0a0a;
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 15px; letter-spacing: 0.1em; font-weight: 500; }
+    header span { font-size: 12px; color: #555; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    .section-title {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 12px;
+      margin-top: 28px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+      border: 1px solid #e8e8e8;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label { font-size: 12px; color: #666; font-weight: 500; }
+
+    input, select {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus { border-color: #0a0a0a; }
+
+    .btn {
+      padding: 11px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.8; }
+    .btn-primary { background: #0a0a0a; color: #fff; }
+    .btn-danger { background: #fee2e2; color: #dc2626; }
+
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .msg.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; display: block; }
+    .msg.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; display: block; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #888; text-align: left; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+    td { padding: 12px; border-bottom: 1px solid #f5f5f5; font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-valid { background: #f0fdf4; color: #16a34a; }
+    .badge-expired { background: #fef2f2; color: #dc2626; }
+    .badge-unbound { background: #fefce8; color: #ca8a04; }
+
+    .type-label { color: #666; font-size: 12px; }
+
+    .empty { text-align: center; padding: 40px; color: #aaa; font-size: 13px; }
+
+    .filter-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .filter-row input { flex: 1; }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>永衡運動工作室 · 後台管理</h1>
+  <span id="memberCount">載入中...</span>
+</header>
+
+<div class="container">
+
+  <div class="section-title">新增會員</div>
+  <div class="card">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>姓名 *</label>
+        <input type="text" id="name" placeholder="王小明">
+      </div>
+      <div class="form-group">
+        <label>電話</label>
+        <input type="text" id="phone" placeholder="0912345678">
+      </div>
+      <div class="form-group">
+        <label>會員類型 *</label>
+        <select id="type">
+          <option value="single_month">單月會員</option>
+          <option value="monthly">月訂閱</option>
+          <option value="annual">年會員</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>到期日 *</label>
+        <input type="date" id="expires">
+      </div>
+      <div class="form-group full">
+        <label>LINE UID（掃碼後填入，可先留空）</label>
+        <input type="text" id="lineUid" placeholder="U1234567890abcdef...">
+      </div>
+    </div>
+    <div style="margin-top:16px; display:flex; gap:8px;">
+      <button class="btn btn-primary" onclick="addMember()">新增會員</button>
+    </div>
+    <div class="msg" id="addMsg"></div>
+  </div>
+
+  <div class="section-title">會員列表</div>
+  <div class="card">
+    <div class="filter-row">
+      <input type="text" id="search" placeholder="搜尋姓名或電話..." oninput="filterMembers()">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>姓名</th>
+          <th>類型</th>
+          <th>到期日</th>
+          <th>LINE 綁定</th>
+          <th>狀態</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="memberTable">
+        <tr><td colspan="6" class="empty">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- 編輯 Modal -->
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:16px; padding:28px; width:90%; max-width:400px;">
+    <div style="font-size:15px; font-weight:600; margin-bottom:20px;">編輯會員</div>
+    <input type="hidden" id="editId">
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>姓名</label>
+      <input type="text" id="editName">
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>電話</label>
+      <input type="text" id="editPhone">
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>會員類型</label>
+      <select id="editType">
+        <option value="single_month">單月會員</option>
+        <option value="monthly">月訂閱</option>
+        <option value="annual">年會員</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>到期日</label>
+      <input type="date" id="editExpires">
+    </div>
+    <div class="form-group" style="margin-bottom:20px;">
+      <label>LINE UID</label>
+      <input type="text" id="editLineUid">
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn" style="background:#f5f5f5;" onclick="closeEdit()">取消</button>
+      <button class="btn btn-primary" onclick="saveEdit()">儲存</button>
+    </div>
+    <div class="msg" id="editMsg"></div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://wcjxtrlugszykhisjtdj.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indjanh0cmx1Z3N6eWtoaXNqdGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3ODY0MTcsImV4cCI6MjA5NzM2MjQxN30.IfLAYfAFxM1JmNa-B0Z6j1WZ_ThjdTy7TeBlb-TrQok';
+
+  const TYPE_LABELS = { single_month: '單月會員', monthly: '月訂閱', annual: '年會員' };
+
+  let allMembers = [];
+
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+  };
+
+  async function loadMembers() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/members?order=created_at.desc`, { headers });
+    allMembers = await res.json();
+    renderTable(allMembers);
+    document.getElementById('memberCount').textContent = `共 ${allMembers.length} 位會員`;
+  }
+
+  function renderTable(members) {
+    const tbody = document.getElementById('memberTable');
+    if (!members.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">尚無會員資料</td></tr>';
+      return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    tbody.innerHTML = members.map(m => {
+      const isValid = m.expires_at >= today;
+      const statusBadge = isValid
+        ? '<span class="badge badge-valid">有效</span>'
+        : '<span class="badge badge-expired">已過期</span>';
+      const lineBadge = m.line_uid
+        ? '<span class="badge badge-valid">已綁定</span>'
+        : '<span class="badge badge-unbound">未綁定</span>';
+      return `
+        <tr>
+          <td><strong>${m.name}</strong>${m.phone ? `<br><span class="type-label">${m.phone}</span>` : ''}</td>
+          <td class="type-label">${TYPE_LABELS[m.membership_type] || m.membership_type}</td>
+          <td>${m.expires_at}</td>
+          <td>${lineBadge}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <button class="btn" style="background:#f5f5f5; padding:6px 12px;" onclick="openEdit('${m.id}')">編輯</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function filterMembers() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const filtered = allMembers.filter(m =>
+      m.name.toLowerCase().includes(q) || (m.phone && m.phone.includes(q))
+    );
+    renderTable(filtered);
+  }
+
+  async function addMember() {
+    const name = document.getElementById('name').value.trim();
+    const expires = document.getElementById('expires').value;
+    const type = document.getElementById('type').value;
+    const phone = document.getElementById('phone').value.trim();
+    const lineUid = document.getElementById('lineUid').value.trim();
+    const msg = document.getElementById('addMsg');
+
+    if (!name || !expires) {
+      msg.textContent = '請填寫姓名和到期日';
+      msg.className = 'msg error';
+      return;
+    }
+
+    const body = { name, expires_at: expires, membership_type: type };
+    if (phone) body.phone = phone;
+    if (lineUid) body.line_uid = lineUid;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/members`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      msg.textContent = `✓ 已新增會員：${name}`;
+      msg.className = 'msg success';
+      ['name', 'phone', 'lineUid', 'expires'].forEach(id => document.getElementById(id).value = '');
+      loadMembers();
+    } else {
+      const err = await res.json();
+      msg.textContent = '新增失敗：' + (err.message || '請檢查資料');
+      msg.className = 'msg error';
+    }
+  }
+
+  function openEdit(id) {
+    const m = allMembers.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('editId').value = m.id;
+    document.getElementById('editName').value = m.name;
+    document.getElementById('editPhone').value = m.phone || '';
+    document.getElementById('editType').value = m.membership_type;
+    document.getElementById('editExpires').value = m.expires_at;
+    document.getElementById('editLineUid').value = m.line_uid || '';
+    document.getElementById('editModal').style.display = 'flex';
+  }
+
+  function closeEdit() {
+    document.getElementById('editModal').style.display = 'none';
+    document.getElementById('editMsg').className = 'msg';
+  }
+
+  async function saveEdit() {
+    const id = document.getElementById('editId').value;
+    const body = {
+      name: document.getElementById('editName').value.trim(),
+      phone: document.getElementById('editPhone').value.trim() || null,
+      membership_type: document.getElementById('editType').value,
+      expires_at: document.getElementById('editExpires').value,
+      line_uid: document.getElementById('editLineUid').value.trim() || null,
+    };
+    const msg = document.getElementById('editMsg');
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/members?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      closeEdit();
+      loadMembers();
+    } else {
+      msg.textContent = '儲存失敗';
+      msg.className = 'msg error';
+    }
+  }
+
+  // 設定今天為預設到期日起點
+  const today = new Date();
+  today.setMonth(today.getMonth() + 1);
+  document.getElementById('expires').value = today.toISOString().split('T')[0];
+
+  loadMembers();
+</script>
+</body>
+</html>
