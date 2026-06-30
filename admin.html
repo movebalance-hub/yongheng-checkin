@@ -271,6 +271,7 @@
           <td>${statusBadge}</td>
           <td>
             <button class="btn" style="background:#f5f5f5; padding:6px 12px;" onclick="openEdit('${m.id}')">編輯</button>
+            <button class="btn" style="background:#fee2e2; color:#dc2626; padding:6px 12px;" onclick="deleteMember('${m.id}', '${m.name}')">刪除</button>
           </td>
         </tr>`;
     }).join('');
@@ -317,6 +318,21 @@
       const err = await res.json();
       msg.textContent = '新增失敗：' + (err.message || '請檢查資料');
       msg.className = 'msg error';
+    }
+  }
+
+  async function deleteMember(id, name) {
+    if (!confirm(`確定要刪除會員「${name}」嗎？此動作無法復原。`)) return;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/members?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { ...headers, 'Prefer': 'return=minimal' }
+    });
+
+    if (res.ok) {
+      loadMembers();
+    } else {
+      alert('刪除失敗，請稍後再試');
     }
   }
 
