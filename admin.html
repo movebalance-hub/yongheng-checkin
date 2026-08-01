@@ -227,8 +227,8 @@
 </div>
 
 <script>
-  const SUPABASE_URL = 'https://wcjxtrlugszykhisjtdj.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indjanh0cmx1Z3N6eWtoaXNqdGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3ODY0MTcsImV4cCI6MjA5NzM2MjQxN30.IfLAYfAFxM1JmNa-B0Z6j1WZ_ThjdTy7TeBlb-TrQok';
+  const SUPABASE_URL = 'https://kdfsgguyaxrbyctxnlih.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_MCjbNZmcI0LVmDjGOqUosg_6vnxDeJv';
 
   const TYPE_LABELS = { single_month: '單月會員', monthly: '月訂閱', annual: '年會員' };
 
@@ -237,7 +237,9 @@
   const headers = {
     'apikey': SUPABASE_ANON_KEY,
     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept-Profile': 'checkin',
+    'Content-Profile': 'checkin'
   };
 
   async function loadMembers() {
