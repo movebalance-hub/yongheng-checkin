@@ -187,6 +187,24 @@
     </table>
   </div>
 
+  <div class="section-title">入場紀錄</div>
+  <div class="card">
+    <div class="filter-row">
+      <input type="text" id="checkinSearch" placeholder="搜尋姓名..." oninput="filterCheckinLogs()">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>姓名</th>
+          <th>入場時間</th>
+        </tr>
+      </thead>
+      <tbody id="checkinLogTable">
+        <tr><td colspan="2" class="empty">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
 </div>
 
 <!-- 編輯 Modal -->
@@ -381,12 +399,48 @@
     }
   }
 
+  let allCheckinLogs = [];
+
+  async function loadCheckinLogs() {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/checkin_logs?select=id,checked_in_at,members(name)&order=checked_in_at.desc&limit=200`,
+      { headers }
+    );
+    allCheckinLogs = await res.json();
+    renderCheckinTable(allCheckinLogs);
+  }
+
+  function renderCheckinTable(logs) {
+    const tbody = document.getElementById('checkinLogTable');
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="2" class="empty">尚無入場紀錄</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(log => {
+      const name = log.members ? log.members.name : '（會員已刪除）';
+      const time = new Date(log.checked_in_at).toLocaleString('zh-TW', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+      return `<tr><td><strong>${name}</strong></td><td>${time}</td></tr>`;
+    }).join('');
+  }
+
+  function filterCheckinLogs() {
+    const q = document.getElementById('checkinSearch').value.toLowerCase();
+    const filtered = allCheckinLogs.filter(log =>
+      log.members && log.members.name.toLowerCase().includes(q)
+    );
+    renderCheckinTable(filtered);
+  }
+
   // 設定今天為預設到期日起點
   const today = new Date();
   today.setMonth(today.getMonth() + 1);
   document.getElementById('expires').value = today.toISOString().split('T')[0];
 
   loadMembers();
+  loadCheckinLogs();
 </script>
 </body>
 </html>
