@@ -116,6 +116,8 @@
     .filter-row { display: flex; gap: 8px; margin-bottom: 16px; }
     .filter-row input { flex: 1; }
 
+    .table-scroll { max-height: 400px; overflow-y: auto; }
+
     @media (max-width: 600px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-group.full { grid-column: 1; }
@@ -193,17 +195,24 @@
     <div class="filter-row">
       <input type="text" id="checkinSearch" placeholder="搜尋姓名..." oninput="filterCheckinLogs()">
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>姓名</th>
-          <th>入場時間</th>
-        </tr>
-      </thead>
-      <tbody id="checkinLogTable">
-        <tr><td colspan="2" class="empty">載入中...</td></tr>
-      </tbody>
-    </table>
+    <div style="margin-bottom:16px; display:flex; gap:8px;">
+      <button class="btn" style="background:#f5f5f5;" onclick="exportCheckinLogs()">匯出 CSV</button>
+      <button class="btn btn-danger" onclick="clearCheckinLogs()">清空紀錄</button>
+    </div>
+    <div class="msg" id="checkinMsg"></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>入場時間</th>
+          </tr>
+        </thead>
+        <tbody id="checkinLogTable">
+          <tr><td colspan="2" class="empty">載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
 </div>
@@ -434,6 +443,96 @@
       log.members && log.members.name.toLowerCase().includes(q)
     );
     renderCheckinTable(filtered);
+  }
+
+  const CHECKIN_EXPORT_MARKER_KEY = 'checkin_logs_export_marker';
+
+  function toCsvValue(value) {
+    const str = String(value ?? '');
+    if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  }
+
+  async function fetchAllCheckinLogs() {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/checkin_logs?select=checked_in_at,members(name)&order=checked_in_at.desc`,
+      { headers }
+    );
+    return res.json();
+  }
+
+  async function exportCheckinLogs() {
+    const msg = document.getElementById('checkinMsg');
+    msg.className = 'msg';
+    const logs = await fetchAllCheckinLogs();
+
+    if (!logs.length) {
+      msg.textContent = '沒有紀錄可匯出';
+      msg.className = 'msg error';
+      return;
+    }
+
+    const header = ['姓名', '入場時間'];
+    const rows = logs.map(log => [
+      log.members ? log.members.name : '（會員已刪除）',
+      new Date(log.checked_in_at).toLocaleString('zh-TW')
+    ]);
+    const csv = [header, ...rows].map(row => row.map(toCsvValue).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `入場紀錄_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    localStorage.setItem(
+      CHECKIN_EXPORT_MARKER_KEY,
+      JSON.stringify({ count: logs.length, exportedAt: new Date().toISOString() })
+    );
+    msg.textContent = `已匯出共 ${logs.length} 筆入場紀錄`;
+    msg.className = 'msg success';
+  }
+
+  async function clearCheckinLogs() {
+    const msg = document.getElementById('checkinMsg');
+    msg.className = 'msg';
+    const logs = await fetchAllCheckinLogs();
+
+    if (!logs.length) {
+      msg.textContent = '沒有紀錄可清空';
+      msg.className = 'msg error';
+      return;
+    }
+
+    const markerRaw = localStorage.getItem(CHECKIN_EXPORT_MARKER_KEY);
+    const marker = markerRaw ? JSON.parse(markerRaw) : null;
+
+    if (!marker || marker.count !== logs.length) {
+      msg.textContent = `請先匯出目前的 ${logs.length} 筆紀錄後再清空（尚未匯出，或匯出後資料筆數有變動）`;
+      msg.className = 'msg error';
+      return;
+    }
+
+    if (!confirm(`即將刪除全部 ${logs.length} 筆入場紀錄，此動作無法復原，確定要清空嗎？`)) return;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/checkin_logs?id=not.is.null`, {
+      method: 'DELETE',
+      headers: { ...headers, 'Prefer': 'return=minimal' }
+    });
+
+    if (!res.ok) {
+      msg.textContent = '清空失敗，請稍後再試';
+      msg.className = 'msg error';
+      return;
+    }
+
+    localStorage.removeItem(CHECKIN_EXPORT_MARKER_KEY);
+    msg.textContent = `已清空共 ${logs.length} 筆紀錄`;
+    msg.className = 'msg success';
+    await loadCheckinLogs();
   }
 
   // 設定今天為預設到期日起點
