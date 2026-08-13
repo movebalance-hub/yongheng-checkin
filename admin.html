@@ -192,12 +192,16 @@
 
   <div class="section-title">入場紀錄</div>
   <div class="card">
+    <div style="margin-bottom:16px;">
+      <label style="display:block; margin-bottom:6px;">選擇月份</label>
+      <input type="month" id="checkinMonth" style="max-width:200px;">
+    </div>
     <div class="filter-row">
       <input type="text" id="checkinSearch" placeholder="搜尋姓名..." oninput="filterCheckinLogs()">
     </div>
     <div style="margin-bottom:16px; display:flex; gap:8px;">
-      <button class="btn" style="background:#f5f5f5;" onclick="exportCheckinLogs()">匯出 CSV</button>
-      <button class="btn btn-danger" onclick="clearCheckinLogs()">清空紀錄</button>
+      <button class="btn" style="background:#f5f5f5;" onclick="exportCheckinLogs()">匯出本月 CSV</button>
+      <button class="btn btn-danger" onclick="clearCheckinLogs()">清空本月紀錄</button>
     </div>
     <div class="msg" id="checkinMsg"></div>
     <div class="table-scroll">
@@ -412,19 +416,50 @@
 
   let allCheckinLogs = [];
 
-  async function loadCheckinLogs() {
+  // 用本地時間算出該月份的起訖時間點（含時分秒），轉成 UTC ISO 字串給 timestamptz 欄位比對用
+  function monthRange(monthValue) {
+    const [year, month] = monthValue.split('-').map(Number);
+    const start = new Date(year, month - 1, 1, 0, 0, 0);
+    const end = new Date(year, month, 1, 0, 0, 0);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }
+
+  function monthLabel(monthValue) {
+    const [year, month] = monthValue.split('-');
+    return `${year}年${month}月`;
+  }
+
+  function localMonthValue(date = new Date()) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+  }
+
+  function exportMarkerKey(monthValue) {
+    return `checkin_logs_export_${monthValue}`;
+  }
+
+  async function fetchMonthCheckinLogs(monthValue) {
+    const { start, end } = monthRange(monthValue);
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/checkin_logs?select=id,checked_in_at,members(name)&order=checked_in_at.desc&limit=200`,
+      `${SUPABASE_URL}/rest/v1/checkin_logs?select=checked_in_at,members(name)` +
+      `&checked_in_at=gte.${encodeURIComponent(start)}&checked_in_at=lt.${encodeURIComponent(end)}` +
+      `&order=checked_in_at.desc`,
       { headers }
     );
-    allCheckinLogs = await res.json();
+    return res.json();
+  }
+
+  async function loadCheckinLogs() {
+    const monthValue = document.getElementById('checkinMonth').value;
+    allCheckinLogs = await fetchMonthCheckinLogs(monthValue);
     renderCheckinTable(allCheckinLogs);
   }
 
   function renderCheckinTable(logs) {
     const tbody = document.getElementById('checkinLogTable');
     if (!logs.length) {
-      tbody.innerHTML = '<tr><td colspan="2" class="empty">尚無入場紀錄</td></tr>';
+      const monthValue = document.getElementById('checkinMonth').value;
+      tbody.innerHTML = `<tr><td colspan="2" class="empty">${monthLabel(monthValue)}尚無入場紀錄</td></tr>`;
       return;
     }
     tbody.innerHTML = logs.map(log => {
@@ -445,29 +480,20 @@
     renderCheckinTable(filtered);
   }
 
-  const CHECKIN_EXPORT_MARKER_KEY = 'checkin_logs_export_marker';
-
   function toCsvValue(value) {
     const str = String(value ?? '');
     if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
   }
 
-  async function fetchAllCheckinLogs() {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/checkin_logs?select=checked_in_at,members(name)&order=checked_in_at.desc`,
-      { headers }
-    );
-    return res.json();
-  }
-
   async function exportCheckinLogs() {
+    const monthValue = document.getElementById('checkinMonth').value;
     const msg = document.getElementById('checkinMsg');
     msg.className = 'msg';
-    const logs = await fetchAllCheckinLogs();
+    const logs = await fetchMonthCheckinLogs(monthValue);
 
     if (!logs.length) {
-      msg.textContent = '沒有紀錄可匯出';
+      msg.textContent = `${monthLabel(monthValue)}沒有紀錄可匯出`;
       msg.className = 'msg error';
       return;
     }
@@ -482,46 +508,48 @@
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `入場紀錄_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `入場紀錄_${monthValue}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
     localStorage.setItem(
-      CHECKIN_EXPORT_MARKER_KEY,
+      exportMarkerKey(monthValue),
       JSON.stringify({ count: logs.length, exportedAt: new Date().toISOString() })
     );
-    msg.textContent = `已匯出共 ${logs.length} 筆入場紀錄`;
+    msg.textContent = `已匯出「${monthLabel(monthValue)}」共 ${logs.length} 筆入場紀錄`;
     msg.className = 'msg success';
   }
 
   async function clearCheckinLogs() {
+    const monthValue = document.getElementById('checkinMonth').value;
     const msg = document.getElementById('checkinMsg');
     msg.className = 'msg';
-    const logs = await fetchAllCheckinLogs();
+    const logs = await fetchMonthCheckinLogs(monthValue);
 
     if (!logs.length) {
-      msg.textContent = '沒有紀錄可清空';
+      msg.textContent = `${monthLabel(monthValue)}沒有紀錄可清空`;
       msg.className = 'msg error';
       return;
     }
 
-    const markerRaw = localStorage.getItem(CHECKIN_EXPORT_MARKER_KEY);
+    const markerRaw = localStorage.getItem(exportMarkerKey(monthValue));
     const marker = markerRaw ? JSON.parse(markerRaw) : null;
 
     if (!marker || marker.count !== logs.length) {
-      msg.textContent = `請先匯出目前的 ${logs.length} 筆紀錄後再清空（尚未匯出，或匯出後資料筆數有變動）`;
+      msg.textContent = `請先匯出「${monthLabel(monthValue)}」目前的 ${logs.length} 筆紀錄後再清空（尚未匯出，或匯出後資料筆數有變動）`;
       msg.className = 'msg error';
       return;
     }
 
-    if (!confirm(`即將刪除全部 ${logs.length} 筆入場紀錄，此動作無法復原，確定要清空嗎？`)) return;
+    if (!confirm(`即將刪除「${monthLabel(monthValue)}」共 ${logs.length} 筆入場紀錄，此動作無法復原，確定要清空嗎？`)) return;
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/checkin_logs?id=not.is.null`, {
-      method: 'DELETE',
-      headers: { ...headers, 'Prefer': 'return=minimal' }
-    });
+    const { start, end } = monthRange(monthValue);
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/checkin_logs?checked_in_at=gte.${encodeURIComponent(start)}&checked_in_at=lt.${encodeURIComponent(end)}`,
+      { method: 'DELETE', headers: { ...headers, 'Prefer': 'return=minimal' } }
+    );
 
     if (!res.ok) {
       msg.textContent = '清空失敗，請稍後再試';
@@ -529,16 +557,20 @@
       return;
     }
 
-    localStorage.removeItem(CHECKIN_EXPORT_MARKER_KEY);
-    msg.textContent = `已清空共 ${logs.length} 筆紀錄`;
+    localStorage.removeItem(exportMarkerKey(monthValue));
+    msg.textContent = `已清空「${monthLabel(monthValue)}」共 ${logs.length} 筆紀錄`;
     msg.className = 'msg success';
     await loadCheckinLogs();
   }
+
+  document.getElementById('checkinMonth').addEventListener('change', loadCheckinLogs);
 
   // 設定今天為預設到期日起點
   const today = new Date();
   today.setMonth(today.getMonth() + 1);
   document.getElementById('expires').value = today.toISOString().split('T')[0];
+
+  document.getElementById('checkinMonth').value = localMonthValue();
 
   loadMembers();
   loadCheckinLogs();
