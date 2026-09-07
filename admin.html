@@ -267,6 +267,13 @@
 
   const TYPE_LABELS = { single_month: '單月會員', monthly: '月訂閱', annual: '年會員', annual_monthly: '月付年會籍', single_entry: '單次入場或體驗活動' };
 
+  // 會員列表依此順序排列：單次入場或體驗活動 → 單月會員 → 月訂閱 → 月付年會籍 → 年會員
+  const TYPE_ORDER = ['single_entry', 'single_month', 'monthly', 'annual_monthly', 'annual'];
+  function typeSortIndex(type) {
+    const i = TYPE_ORDER.indexOf(type);
+    return i === -1 ? TYPE_ORDER.length : i;
+  }
+
   let allMembers = [];
 
   const headers = {
@@ -280,6 +287,7 @@
   async function loadMembers() {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/members?order=created_at.desc`, { headers });
     allMembers = await res.json();
+    allMembers.sort((a, b) => typeSortIndex(a.membership_type) - typeSortIndex(b.membership_type));
     renderTable(allMembers);
     document.getElementById('memberCount').textContent = `共 ${allMembers.length} 位會員`;
   }
